@@ -12,6 +12,26 @@
         .fade-in { animation: fadeIn 0.5s ease-in; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         .hidden-section { display: none; }
+        
+        /* Word Tile Styles */
+        .word-tile {
+            transition: all 0.2s;
+            user-select: none;
+            cursor: pointer;
+            box-shadow: 0 2px 0 #cbd5e1; /* mimic 3d button */
+            text-transform: lowercase; /* Visual enforcement */
+        }
+        .word-tile:active {
+            transform: translateY(2px);
+            box-shadow: none;
+        }
+        .answer-area:empty::before {
+            content: 'Tap words below to build sentence...';
+            color: #9ca3af;
+            font-style: italic;
+            font-size: 0.9rem;
+            align-self: center;
+        }
     </style>
 </head>
 <body class="bg-gray-100 min-h-screen text-gray-800">
@@ -21,7 +41,7 @@
         <div class="max-w-5xl mx-auto flex justify-between items-center">
             <div>
                 <h1 class="text-xl font-bold uppercase">HAY (THERE IS/ARE) TEST</h1>
-                <p class="text-xs text-blue-200">Spanish 1 • Intro to Existence</p>
+                <p class="text-xs text-blue-200">Spanish 1 • Sentence Structure</p>
             </div>
             <button onclick="window.toggleTeacherModal()" class="text-xs bg-blue-900 hover:bg-blue-700 px-3 py-1 rounded transition cursor-pointer">
                 <i class="fas fa-lock mr-1"></i> Teacher Access
@@ -72,7 +92,13 @@
                     <span id="student-display" class="font-semibold text-blue-800"></span>
                     <span class="text-sm text-gray-500">50 Questions</span>
                 </div>
-                <div id="questions-list" class="p-6 space-y-8">
+                
+                <div class="bg-yellow-50 p-4 border-b border-yellow-100 text-sm text-yellow-800">
+                    <i class="fas fa-info-circle mr-1"></i> 
+                    <strong>Instructions:</strong> Tap words in the "Word Bank" to move them to the answer line. Arrange them to form the correct Spanish sentence. <span class="font-bold text-red-600">Note: Words are lowercase and punctuation is removed to increase difficulty.</span>
+                </div>
+
+                <div id="questions-list" class="p-6 space-y-10">
                     <!-- Questions injected via JS -->
                 </div>
                 <div class="p-6 bg-gray-50 border-t flex justify-center">
@@ -202,78 +228,90 @@
 // --- Configuration ---
 const TEACHER_PASSWORD = "admin"; 
 
-// --- Quiz Data (50 Questions) ---
-const quizData = [
-    // BASIC USAGE (1-10)
-    { q: "How do you say 'There is a book'?", options: ["Es un libro", "Tiene un libro", "Hay un libro", "Está un libro"], a: 2 },
-    { q: "How do you say 'There are two pens'?", options: ["Hay dos bolígrafos", "Son dos bolígrafos", "Tienen dos bolígrafos", "Están dos bolígrafos"], a: 0 },
-    { q: "Translate: 'Hay una mesa.'", options: ["There is a table.", "This is a table.", "I have a table.", "Where is the table?"], a: 0 },
-    { q: "Translate: 'Hay tres gatos.'", options: ["Three cats are here.", "There are three cats.", "I see three cats.", "The cats are three."], a: 1 },
-    { q: "Does 'Hay' change form for plural nouns?", options: ["Yes (Hays)", "Yes (Han)", "No, it stays 'Hay'", "Yes (Hayn)"], a: 2 },
-    { q: "How do you say 'Is there...?' in Spanish?", options: ["¿Es...?", "¿Hay...?", "¿Tiene...?", "¿Está...?"], a: 1 },
-    { q: "True or False: 'Hay' can mean 'There is' AND 'There are'.", options: ["True", "False"], a: 0 },
-    { q: "Select the correct sentence:", options: ["Hay un chicos.", "Hay un chico.", "Hay una chico.", "Hay unos chico."], a: 1 },
-    { q: "Select the correct sentence:", options: ["Hay muchas flores.", "Hay muchos flores.", "Hay mucho flores.", "Hay una flores."], a: 0 },
-    { q: "Translate: 'There is a problem.'", options: ["Hay un problema.", "Es un problema.", "Tiene problema.", "Está problema."], a: 0 },
+// --- Sentence Building Data (50 Questions) ---
+// Keys: 'eng' (Prompt), 'span' (Correct Sentence), 'distractor' (Extra wrong word)
+const rawQuizData = [
+    // Basic Usage
+    { eng: "There is a book.", span: "Hay un libro.", distractor: "Es" },
+    { eng: "There are two pens.", span: "Hay dos bolígrafos.", distractor: "Son" },
+    { eng: "There is a table.", span: "Hay una mesa.", distractor: "Tiene" },
+    { eng: "There are three cats.", span: "Hay tres gatos.", distractor: "Están" },
+    { eng: "Is there a problem?", span: "¿ Hay un problema ?", distractor: "Es" },
+    { eng: "Is there homework?", span: "¿ Hay tarea ?", distractor: "Tiene" },
+    { eng: "There is a student (male).", span: "Hay un estudiante.", distractor: "El" },
+    { eng: "There are some boys.", span: "Hay unos chicos.", distractor: "Son" },
+    { eng: "There are many flowers.", span: "Hay muchas flores.", distractor: "Tienen" },
+    { eng: "There is a problem.", span: "Hay un problema.", distractor: "Es" },
 
-    // CLASSROOM VOCABULARY (11-20)
-    { q: "En la clase, ___ una pizarra.", options: ["hay", "es", "tiene", "está"], a: 0 },
-    { q: "___ muchos estudiantes en la escuela.", options: ["Hay", "Son", "Tienen", "Están"], a: 0 },
-    { q: "¿___ un lápiz en tu mochila?", options: ["Hay", "Es", "Tiene", "Son"], a: 0 },
-    { q: "Translate: 'There are five chairs.'", options: ["Hay cinco sillas.", "Son cinco sillas.", "Tienen cinco sillas.", "Cinco sillas hay."], a: 0 },
-    { q: "Translate: 'There is a map on the wall.'", options: ["Hay un mapa en la pared.", "Es un mapa en la pared.", "Tiene un mapa.", "Está un mapa."], a: 0 },
-    { q: "How do you say 'There are no exams today'?", options: ["No hay exámenes hoy.", "No son exámenes hoy.", "No tienen exámenes.", "Nada exámenes hoy."], a: 0 },
-    { q: "In the library, there are books. -> En la biblioteca ___ libros.", options: ["hay", "son", "están", "tienen"], a: 0 },
-    { q: "___ una computadora en el escritorio.", options: ["Hay", "Es", "Tiene", "Son"], a: 0 },
-    { q: "¿Cuántos días ___ en una semana?", options: ["hay", "son", "es", "tienen"], a: 0 },
-    { q: "En mi clase de español ___ veinte alumnos.", options: ["hay", "son", "están", "tienen"], a: 0 },
+    // Classroom
+    { eng: "In the class, there is a whiteboard.", span: "En la clase, hay una pizarra.", distractor: "Es" },
+    { eng: "There are many students in the school.", span: "Hay muchos estudiantes en la escuela.", distractor: "Son" },
+    { eng: "Is there a pencil in your backpack?", span: "¿ Hay un lápiz en tu mochila ?", distractor: "Tiene" },
+    { eng: "There are five chairs.", span: "Hay cinco sillas.", distractor: "Son" },
+    { eng: "There is a map on the wall.", span: "Hay un mapa en la pared.", distractor: "Está" },
+    { eng: "There are no exams today.", span: "No hay exámenes hoy.", distractor: "Son" },
+    { eng: "In the library, there are books.", span: "En la biblioteca hay libros.", distractor: "Tienen" },
+    { eng: "There is a computer on the desk.", span: "Hay una computadora en el escritorio.", distractor: "Es" },
+    { eng: "How many days are there in a week?", span: "¿ Cuántos días hay en una semana ?", distractor: "Son" },
+    { eng: "In my class, there are twenty students.", span: "En mi clase hay veinte alumnos.", distractor: "Están" },
 
-    // NEGATIVES & QUANTITIES (21-30)
-    { q: "How do you say 'There is nothing'?", options: ["No hay nada.", "No es nada.", "Hay no nada.", "Nada es."], a: 0 },
-    { q: "Translate: 'No hay tarea.'", options: ["There is no homework.", "I don't have homework.", "Homework is not here.", "No working."], a: 0 },
-    { q: "Complete: No ___ luz (light).", options: ["hay", "es", "tiene", "está"], a: 0 },
-    { q: "Translate: 'Is there any water?'", options: ["¿Hay agua?", "¿Es agua?", "¿Tiene agua?", "¿Está agua?"], a: 0 },
-    { q: "Complete: ___ mucha gente (people) aquí.", options: ["Hay", "Es", "Son", "Están"], a: 0 },
-    { q: "Translate: 'There are few cars.'", options: ["Hay pocos carros.", "Hay muchos carros.", "Hay pequeños carros.", "Hay grandes carros."], a: 0 },
-    { q: "How do you say 'There is nobody'?", options: ["No hay nadie.", "No hay alguien.", "No hay nada.", "No es nadie."], a: 0 },
-    { q: "Translate: 'No hay tiempo.'", options: ["There is no time.", "It is not time.", "I don't have time.", "Time is not here."], a: 0 },
-    { q: "Select the correct negative form:", options: ["No hay perros.", "Hay no perros.", "Not hay perros.", "No perros hay."], a: 0 },
-    { q: "Translate: 'There are many questions.'", options: ["Hay muchas preguntas.", "Hay muchos preguntas.", "Hay mucha preguntas.", "Hay una preguntas."], a: 0 },
+    // Negatives & Quantities
+    { eng: "There is nothing.", span: "No hay nada.", distractor: "Es" },
+    { eng: "There is no homework.", span: "No hay tarea.", distractor: "Tiene" },
+    { eng: "There is no light.", span: "No hay luz.", distractor: "Está" },
+    { eng: "Is there any water?", span: "¿ Hay agua ?", distractor: "Es" },
+    { eng: "There are many people here.", span: "Hay mucha gente aquí.", distractor: "Son" },
+    { eng: "There are few cars.", span: "Hay pocos carros.", distractor: "Tienen" },
+    { eng: "There is nobody.", span: "No hay nadie.", distractor: "Es" },
+    { eng: "There is no time.", span: "No hay tiempo.", distractor: "Tiene" },
+    { eng: "There are no dogs.", span: "No hay perros.", distractor: "Son" },
+    { eng: "There are many questions.", span: "Hay muchas preguntas.", distractor: "Tienen" },
 
-    // HOUSE & CITY CONTEXT (31-40)
-    { q: "En mi casa ___ tres dormitorios.", options: ["hay", "son", "están", "tienen"], a: 0 },
-    { q: "En la cocina ___ un refrigerador.", options: ["hay", "es", "está", "tiene"], a: 0 },
-    { q: "¿___ un parque cerca de aquí?", options: ["Hay", "Es", "Está", "Tiene"], a: 0 },
-    { q: "En la ciudad ___ muchos edificios altos.", options: ["hay", "son", "están", "tienen"], a: 0 },
-    { q: "Translate: 'There is a dog in the garden.'", options: ["Hay un perro en el jardín.", "Es un perro en el jardín.", "Está un perro en el jardín.", "Tiene un perro."], a: 0 },
-    { q: "Translate: 'There are flowers on the table.'", options: ["Hay flores en la mesa.", "Son flores en la mesa.", "Están flores en la mesa.", "Tienen flores."], a: 0 },
-    { q: "¿Qué ___ en la sala?", options: ["hay", "es", "son", "tiene"], a: 0 },
-    { q: "En el baño ___ una ducha.", options: ["hay", "es", "está", "tiene"], a: 0 },
-    { q: "Translate: 'There is a big store.'", options: ["Hay una tienda grande.", "Es una tienda grande.", "Tiene una tienda grande.", "Está una tienda grande."], a: 0 },
-    { q: "No ___ cine en este pueblo.", options: ["hay", "es", "está", "tiene"], a: 0 },
+    // House & City
+    { eng: "In my house, there are three bedrooms.", span: "En mi casa hay tres dormitorios.", distractor: "Son" },
+    { eng: "In the kitchen, there is a refrigerator.", span: "En la cocina hay un refrigerador.", distractor: "Está" },
+    { eng: "Is there a park near here?", span: "¿ Hay un parque cerca ?", distractor: "Es" },
+    { eng: "In the city, there are many buildings.", span: "En la ciudad hay muchos edificios.", distractor: "Son" },
+    { eng: "There is a dog in the garden.", span: "Hay un perro en el jardín.", distractor: "Está" },
+    { eng: "There are flowers on the table.", span: "Hay flores en la mesa.", distractor: "Son" },
+    { eng: "What is there in the living room?", span: "¿ Qué hay en la sala ?", distractor: "Es" },
+    { eng: "In the bathroom, there is a shower.", span: "En el baño hay una ducha.", distractor: "Tiene" },
+    { eng: "There is a big store.", span: "Hay una tienda grande.", distractor: "Es" },
+    { eng: "There is no movie theater in this town.", span: "No hay cine en este pueblo.", distractor: "Está" },
 
-    // MIXED PRACTICE (41-50)
-    { q: "¿___ un doctor en el hospital?", options: ["Hay", "Es", "Está", "Tiene"], a: 0 },
-    { q: "Translate: 'There are two windows.'", options: ["Hay dos ventanas.", "Son dos ventanas.", "Dos ventanas son.", "Están dos ventanas."], a: 0 },
-    { q: "Complete: ___ mucho ruido (noise).", options: ["Hay", "Es", "Tiene", "Está"], a: 0 },
-    { q: "How do you say 'There is a lot of food'?", options: ["Hay mucha comida.", "Hay muchos comida.", "Hay muy comida.", "Es mucha comida."], a: 0 },
-    { q: "Translate: 'No hay problema.'", options: ["There is no problem.", "It is not a problem.", "I don't have a problem.", "Problem is not."], a: 0 },
-    { q: "¿Cuántas chicas ___ en el equipo?", options: ["hay", "son", "están", "tienen"], a: 0 },
-    { q: "En el mundo ___ muchas personas.", options: ["hay", "son", "están", "tienen"], a: 0 },
-    { q: "Translate: 'There is a spider!'", options: ["¡Hay una araña!", "¡Es una araña!", "¡Está una araña!", "¡Tiene una araña!"], a: 0 },
-    { q: "Complete: En el cielo (sky) ___ nubes.", options: ["hay", "son", "están", "tienen"], a: 0 },
-    { q: "Final Question: What does 'Hay' mean?", options: ["There is / There are", "To have", "To be", "To go"], a: 0 }
+    // Mixed
+    { eng: "Is there a doctor in the hospital?", span: "¿ Hay un doctor en el hospital ?", distractor: "Es" },
+    { eng: "There are two windows.", span: "Hay dos ventanas.", distractor: "Son" },
+    { eng: "There is a lot of noise.", span: "Hay mucho ruido.", distractor: "Es" },
+    { eng: "There is a lot of food.", span: "Hay mucha comida.", distractor: "Tiene" },
+    { eng: "There is no problem.", span: "No hay problema.", distractor: "Es" },
+    { eng: "How many girls are there on the team?", span: "¿ Cuántas chicas hay en el equipo ?", distractor: "Son" },
+    { eng: "In the world, there are many people.", span: "En el mundo hay muchas personas.", distractor: "Tienen" },
+    { eng: "There is a spider!", span: "¡ Hay una araña !", distractor: "Es" },
+    { eng: "In the sky, there are clouds.", span: "En el cielo hay nubes.", distractor: "Son" },
+    { eng: "There is a cat under the table.", span: "Hay un gato debajo de la mesa.", distractor: "Está" }
 ];
 
-let studentData = {
-    fname: "",
-    lname: "",
-    email: "",
-    period: "",
-    answers: [] 
-};
-
+let studentData = { fname: "", lname: "", email: "", period: "", answers: [] };
 let lastResultData = null;
+let currentSessionQuiz = []; // Holds randomized question objects with word shuffling state
+
+// --- Helper Functions ---
+function shuffleArray(array) {
+    for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+    }
+    return array;
+}
+
+// Helper to normalize strings (Remove punctuation, lowercase)
+function normalizeToken(str) {
+    // Convert to lowercase
+    // Remove periods (.) and commas (,) to reduce position hints
+    // KEEP question marks (?¿) and exclamation points (!¡) as requested
+    return str.toLowerCase().replace(/[.,]/g, "").trim();
+}
 
 // --- Student Flow ---
 
@@ -283,10 +321,7 @@ function startQuiz() {
     const e = document.getElementById('email').value.trim().toLowerCase();
     const p = document.getElementById('period').value;
 
-    if (!f || !l || !e) {
-        alert("Please enter your full name and email address.");
-        return;
-    }
+    if (!f || !l || !e) { alert("Please enter your full name and email address."); return; }
 
     // Check for previous attempt using Email
     const uniqueId = `quiz_taken_${e}`;
@@ -300,6 +335,39 @@ function startQuiz() {
     studentData.email = e;
     studentData.period = p;
 
+    // --- Prepare Randomized Quiz ---
+    // 1. Process raw data into playable objects
+    let processedData = rawQuizData.map((item, index) => {
+        // Split sentence by spaces to get tokens
+        const rawTokens = item.span.split(' ').filter(t => t.length > 0);
+        
+        // Normalize correct tokens for the "Answer Key"
+        // This removes punctuation from the logic check and lowercases everything
+        const correctTokens = rawTokens.map(normalizeToken).filter(t => t.length > 0);
+        
+        // Normalize distractor
+        const cleanDistractor = normalizeToken(item.distractor);
+
+        // Create pool of words (correct + distractor), all normalized
+        const allWords = [...correctTokens, cleanDistractor];
+        
+        // Create unique objects for each word
+        const wordObjects = allWords.map((word, wIndex) => ({
+            id: `q${index}_w${wIndex}`,
+            text: word
+        }));
+
+        return {
+            originalIndex: index,
+            question: item.eng,
+            correctOrder: correctTokens.join(' '), // The target string (lowercase, no punctuation)
+            words: shuffleArray([...wordObjects]) // Shuffled bank
+        };
+    });
+
+    // 2. Shuffle the Questions Order
+    currentSessionQuiz = shuffleArray(processedData);
+
     document.getElementById('student-display').innerText = `${l}, ${f} (${p})`;
     document.getElementById('student-login').classList.add('hidden-section');
     document.getElementById('quiz-container').classList.remove('hidden-section');
@@ -309,62 +377,88 @@ function startQuiz() {
 
 function renderQuestions() {
     const container = document.getElementById('questions-list');
-    container.innerHTML = quizData.map((q, index) => `
-        <div class="mb-6 p-4 border rounded-lg hover:bg-gray-50 transition" id="q-box-${index}">
-            <p class="font-semibold text-lg mb-3">${index + 1}. ${q.q}</p>
-            <div class="space-y-2">
-                ${q.options.map((opt, optIndex) => `
-                    <label class="flex items-center space-x-3 cursor-pointer p-2 rounded hover:bg-blue-100 transition">
-                        <input type="radio" name="q${index}" value="${optIndex}" class="form-radio h-5 w-5 text-blue-600">
-                        <span>${opt}</span>
-                    </label>
+    
+    container.innerHTML = currentSessionQuiz.map((q, qIdx) => `
+        <div class="mb-8 p-6 bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition" id="q-container-${qIdx}">
+            <div class="mb-4">
+                <span class="inline-block bg-blue-100 text-blue-800 text-xs font-bold px-2 py-1 rounded mb-2">Question ${qIdx + 1}</span>
+                <p class="text-xl font-semibold text-gray-800">Translate: <span class="text-blue-700 italic">"${q.question}"</span></p>
+            </div>
+            
+            <!-- Answer Area (Drop Zone) -->
+            <div id="answer-area-${qIdx}" class="answer-area min-h-[60px] bg-blue-50 border-2 border-dashed border-blue-200 rounded-lg p-3 flex flex-wrap gap-2 mb-4 transition-colors hover:border-blue-400">
+                <!-- Words moved here will appear here -->
+            </div>
+
+            <!-- Word Bank -->
+            <div id="word-bank-${qIdx}" class="flex flex-wrap gap-2 p-2">
+                ${q.words.map(word => `
+                    <button 
+                        id="${word.id}" 
+                        onclick="toggleWord('${qIdx}', '${word.id}', '${word.text}')" 
+                        class="word-tile bg-white border border-gray-300 text-gray-700 font-medium px-4 py-2 rounded-lg shadow-sm hover:bg-gray-50 active:scale-95"
+                    >
+                        ${word.text}
+                    </button>
                 `).join('')}
             </div>
         </div>
     `).join('');
 }
 
+// Moves word between Bank and Answer Area
+window.toggleWord = function(qIdx, wordId, wordText) {
+    const btn = document.getElementById(wordId);
+    const bank = document.getElementById(`word-bank-${qIdx}`);
+    const answer = document.getElementById(`answer-area-${qIdx}`);
+    
+    if (btn.parentNode === bank) {
+        // Move to Answer
+        answer.appendChild(btn);
+        btn.classList.replace('bg-white', 'bg-blue-600');
+        btn.classList.replace('text-gray-700', 'text-white');
+        btn.classList.replace('border-gray-300', 'border-blue-600');
+    } else {
+        // Move back to Bank
+        bank.appendChild(btn);
+        btn.classList.replace('bg-blue-600', 'bg-white');
+        btn.classList.replace('text-white', 'text-gray-700');
+        btn.classList.replace('border-blue-600', 'border-gray-300');
+    }
+};
+
 function submitExam() {
-    const answers = [];
     let score = 0;
     let missedIndices = [];
 
-    for (let i = 0; i < quizData.length; i++) {
-        const selected = document.querySelector(`input[name="q${i}"]:checked`);
-        if (!selected) {
-            alert(`You missed question ${i + 1}. Please answer all questions.`);
-            document.getElementById(`q-box-${i}`).scrollIntoView({behavior: "smooth", block: "center"});
-            return;
-        }
-        const val = parseInt(selected.value);
-        answers.push(val);
+    // Evaluate each question
+    currentSessionQuiz.forEach((q, idx) => {
+        const answerArea = document.getElementById(`answer-area-${idx}`);
+        const selectedButtons = Array.from(answerArea.children);
         
-        let isCorrect = false;
-        if (Array.isArray(quizData[i].a)) {
-            isCorrect = quizData[i].a.includes(val);
-        } else {
-            isCorrect = (val === quizData[i].a);
-        }
-
-        if (isCorrect) {
+        // Reconstruct sentence from button text
+        const studentSentence = selectedButtons.map(btn => btn.innerText.trim()).join(' ');
+        
+        // Compare with correct sentence (normalized in startQuiz)
+        if (studentSentence === q.correctOrder) {
             score++;
         } else {
-            missedIndices.push(i);
+            missedIndices.push(q.originalIndex);
         }
-    }
+    });
 
-    // Mark exam as taken in localStorage using Email
+    // Mark exam as taken
     const uniqueId = `quiz_taken_${studentData.email}`;
     localStorage.setItem(uniqueId, "true");
 
-    const finalScore = Math.round((score / quizData.length) * 100);
+    const finalScore = Math.round((score / currentSessionQuiz.length) * 100);
     const resultPayload = {
         name: `${studentData.lname}, ${studentData.fname}`,
         email: studentData.email,
         period: studentData.period,
         score: finalScore,
         rawScore: score,
-        total: quizData.length,
+        total: currentSessionQuiz.length,
         missed: missedIndices,
         timestamp: new Date().toISOString()
     };
@@ -381,7 +475,6 @@ function submitExam() {
 function downloadResult(data) {
     if (!data) return; 
     
-    // Updated Headers to include Email
     const headers = ["Name", "Email", "Period", "Score", "RawScore", "Total", "Timestamp", "MissedQuestionIndices"];
     const safeName = data.name.replace(/"/g, '""');
     const missedStr = data.missed.join('|');
@@ -464,14 +557,13 @@ function handleFiles(files) {
                 const rowStr = lines[1];
                 const matches = rowStr.match(/(".*?"|[^",]+)(?=\s*,|\s*$)/g);
                 
-                // Updated check for new CSV format (Length 8)
                 if (!matches || matches.length < 8) throw new Error("Invalid CSV Format");
 
                 const clean = (str) => str ? str.replace(/^"|"$/g, '').replace(/""/g, '"') : "";
 
                 const res = {
                     name: clean(matches[0]),
-                    email: clean(matches[1]), // Capture Email
+                    email: clean(matches[1]),
                     period: clean(matches[2]),
                     score: parseInt(matches[3]),
                     rawScore: parseInt(matches[4]),
@@ -524,7 +616,7 @@ function updateDashboard() {
         .map(key => ({ 
             index: parseInt(key), 
             count: questionMissCounts[key], 
-            text: quizData[key].q 
+            text: rawQuizData[key].eng // Display the prompt Question 
         }))
         .sort((a, b) => b.count - a.count)
         .slice(0, 3);
